@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import Image from 'next/image'
 
-type Tool = 'none' | 'resize' | 'compress' | 'format' | 'rotate' | 'crop' | 'background'
+type Tool = 'none' | 'resize' | 'compress' | 'format' | 'rotate' | 'crop' | 'background' | 'filters' | 'batch' | 'enhance' | 'watermark'
 
 interface ImageState {
   original: string | null
@@ -75,6 +75,23 @@ export default function Home() {
   // Rotation options
   const [rotation, setRotation] = useState(0)
   const rotationOptions = [0, 90, 180, 270]
+  
+  // Filter options
+  const [brightness, setBrightness] = useState(100)
+  const [contrast, setContrast] = useState(100)
+  const [saturation, setSaturation] = useState(100)
+  const [blur, setBlur] = useState(0)
+  const [grayscale, setGrayscale] = useState(0)
+  const [sepia, setSepia] = useState(0)
+  
+  const filterPresets = [
+    { name: '原图', brightness: 100, contrast: 100, saturation: 100, blur: 0, grayscale: 0, sepia: 0 },
+    { name: '黑白', brightness: 100, contrast: 100, saturation: 0, blur: 0, grayscale: 100, sepia: 0 },
+    { name: '复古', brightness: 110, contrast: 90, saturation: 80, blur: 0, grayscale: 0, sepia: 30 },
+    { name: '鲜艳', brightness: 100, contrast: 120, saturation: 150, blur: 0, grayscale: 0, sepia: 0 },
+    { name: '暗调', brightness: 80, contrast: 110, saturation: 90, blur: 0, grayscale: 0, sepia: 0 },
+    { name: '模糊', brightness: 100, contrast: 100, saturation: 100, blur: 5, grayscale: 0, sepia: 0 },
+  ]
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -360,6 +377,350 @@ export default function Home() {
     img.src = image.original
   }
 
+  // Apply filters
+  const applyFilters = () => {
+    if (!image.original) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const img = new window.Image()
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      
+      // Apply CSS filters
+      ctx.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) blur(${blur}px) grayscale(${grayscale}%) sepia(${sepia}%)`
+      
+      ctx.drawImage(img, 0, 0)
+      
+      const url = canvas.toDataURL('image/png')
+      addToHistory(url)
+    }
+    img.src = image.original
+  }
+
+  // Apply filter preset
+  const applyFilterPreset = (preset: typeof filterPresets[0]) => {
+    setBrightness(preset.brightness)
+    setContrast(preset.contrast)
+    setSaturation(preset.saturation)
+    setBlur(preset.blur)
+    setGrayscale(preset.grayscale)
+    setSepia(preset.sepia)
+    
+    setTimeout(() => applyFilters(), 100)
+  }
+
+  // Reset filters
+  const resetFilters = () => {
+    setBrightness(100)
+    setContrast(100)
+    setSaturation(100)
+    setBlur(0)
+    setGrayscale(0)
+    setSepia(0)
+    
+    if (image.original) {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      const img = new window.Image()
+      img.onload = () => {
+        canvas.width = img.width
+        canvas.height = img.height
+        ctx.drawImage(img, 0, 0)
+        
+        const url = canvas.toDataURL('image/png')
+        addToHistory(url)
+      }
+      img.src = image.original
+    }
+  }
+
+  // Batch processing state
+  const [batchImages, setBatchImages] = useState<File[]>([])
+  const [batchProcessing, setBatchProcessing] = useState(false)
+  const [batchProgress, setBatchProgress] = useState(0)
+  
+  // Enhancement options
+  const [sharpen, setSharpen] = useState(0)
+  const [noiseReduction, setNoiseReduction] = useState(0)
+  const [vignette, setVignette] = useState(0)
+  const [exposure, setExposure] = useState(100)
+  
+  const enhancementPresets = [
+    { name: '原图', sharpen: 0, noiseReduction: 0, vignette: 0, exposure: 100 },
+    { name: '清晰', sharpen: 50, noiseReduction: 30, vignette: 0, exposure: 110 },
+    { name: '专业', sharpen: 30, noiseReduction: 50, vignette: 20, exposure: 105 },
+    { name: '艺术', sharpen: 20, noiseReduction: 20, vignette: 40, exposure: 120 },
+    { name: '暗调', sharpen: 10, noiseReduction: 40, vignette: 60, exposure: 80 },
+  ]
+
+  // Handle batch file upload
+  const handleBatchUpload = (files: FileList) => {
+    const imageFiles = Array.from(files).filter(file => 
+      file.type.startsWith('image/') && file.size <= 20 * 1024 * 1024
+    )
+    
+    if (imageFiles.length === 0) {
+      alert('请上传有效的图片文件（最大 20MB）')
+      return
+    }
+    
+    if (imageFiles.length > 10) {
+      alert('一次最多处理 10 张图片')
+      return
+    }
+    
+    setBatchImages(imageFiles)
+  }
+
+  // Process batch images
+  const processBatch = async () => {
+    if (batchImages.length === 0) return
+    
+    setBatchProcessing(true)
+    setBatchProgress(0)
+    
+    const processedImages: string[] = []
+    
+    for (let i = 0; i < batchImages.length; i++) {
+      const file = batchImages[i]
+      const reader = new FileReader()
+      
+      await new Promise<void>((resolve) => {
+        reader.onload = (e) => {
+          const img = new window.Image()
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+            
+            if (ctx) {
+              canvas.width = img.width
+              canvas.height = img.height
+              
+              // Apply current filters
+              ctx.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) blur(${blur}px) grayscale(${grayscale}%) sepia(${sepia}%)`
+              ctx.drawImage(img, 0, 0)
+              
+              const url = canvas.toDataURL('image/png')
+              processedImages.push(url)
+            }
+            
+            resolve()
+          }
+          img.src = e.target?.result as string
+        }
+        reader.readAsDataURL(file)
+      })
+      
+      setBatchProgress(Math.round(((i + 1) / batchImages.length) * 100))
+    }
+    
+    // Download all images individually
+    if (processedImages.length > 0) {
+      processedImages.forEach((url, index) => {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `processed-image-${index + 1}.png`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      })
+    }
+    
+    setBatchProcessing(false)
+    setBatchImages([])
+  }
+
+  // Apply image enhancement
+  const applyEnhancement = () => {
+    if (!image.original) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const img = new window.Image()
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      
+      // Apply basic filters
+      ctx.filter = `brightness(${exposure}%) contrast(${contrast}%) saturate(${saturation}%)`
+      ctx.drawImage(img, 0, 0)
+      
+      // Apply sharpen
+      if (sharpen > 0) {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const data = imageData.data
+        const factor = sharpen / 100
+        
+        for (let i = 0; i < data.length; i += 4) {
+          if (i > 4 && i < data.length - 8) {
+            data[i] = data[i] * (1 + factor) - data[i - 4] * factor / 2 - data[i + 4] * factor / 2
+            data[i + 1] = data[i + 1] * (1 + factor) - data[i - 3] * factor / 2 - data[i + 5] * factor / 2
+            data[i + 2] = data[i + 2] * (1 + factor) - data[i - 2] * factor / 2 - data[i + 6] * factor / 2
+          }
+        }
+        ctx.putImageData(imageData, 0, 0)
+      }
+      
+      // Apply vignette
+      if (vignette > 0) {
+        const gradient = ctx.createRadialGradient(
+          canvas.width / 2, canvas.height / 2, 0,
+          canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) / 2
+        )
+        gradient.addColorStop(0, `rgba(0, 0, 0, 0)`)
+        gradient.addColorStop(1, `rgba(0, 0, 0, ${vignette / 100})`)
+        
+        ctx.fillStyle = gradient
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
+      
+      const url = canvas.toDataURL('image/png')
+      addToHistory(url)
+    }
+    img.src = image.original
+  }
+
+  // Apply enhancement preset
+  const applyEnhancementPreset = (preset: typeof enhancementPresets[0]) => {
+    setSharpen(preset.sharpen)
+    setNoiseReduction(preset.noiseReduction)
+    setVignette(preset.vignette)
+    setExposure(preset.exposure)
+    
+    setTimeout(() => applyEnhancement(), 100)
+  }
+
+  // Reset enhancement
+  const resetEnhancement = () => {
+    setSharpen(0)
+    setNoiseReduction(0)
+    setVignette(0)
+    setExposure(100)
+    
+    if (image.original) {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      const img = new window.Image()
+      img.onload = () => {
+        canvas.width = img.width
+        canvas.height = img.height
+        ctx.drawImage(img, 0, 0)
+        
+        const url = canvas.toDataURL('image/png')
+        addToHistory(url)
+      }
+      img.src = image.original
+    }
+  }
+
+  // Watermark options
+  const [watermarkText, setWatermarkText] = useState('')
+  const [watermarkSize, setWatermarkSize] = useState(20)
+  const [watermarkColor, setWatermarkColor] = useState('#ffffff')
+  const [watermarkOpacity, setWatermarkOpacity] = useState(0.7)
+  const [watermarkPosition, setWatermarkPosition] = useState('bottom-right')
+  
+  const watermarkPositions = [
+    { value: 'top-left', label: '左上' },
+    { value: 'top-right', label: '右上' },
+    { value: 'bottom-left', label: '左下' },
+    { value: 'bottom-right', label: '右下' },
+    { value: 'center', label: '居中' },
+  ]
+
+  // Apply watermark
+  const applyWatermark = () => {
+    if (!image.original || !watermarkText) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const img = new window.Image()
+    img.onload = () => {
+      canvas.width = img.width
+      canvas.height = img.height
+      
+      // Draw original image
+      ctx.drawImage(img, 0, 0)
+      
+      // Set watermark style
+      ctx.font = `${watermarkSize}px Arial`
+      ctx.fillStyle = watermarkColor
+      ctx.globalAlpha = watermarkOpacity
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      
+      // Calculate position
+      let x, y
+      const padding = 20
+      const textMetrics = ctx.measureText(watermarkText)
+      const textWidth = textMetrics.width
+      const textHeight = watermarkSize
+      
+      switch (watermarkPosition) {
+        case 'top-left':
+          x = padding + textWidth / 2
+          y = padding + textHeight / 2
+          ctx.textAlign = 'left'
+          break
+        case 'top-right':
+          x = canvas.width - padding - textWidth / 2
+          y = padding + textHeight / 2
+          ctx.textAlign = 'right'
+          break
+        case 'bottom-left':
+          x = padding + textWidth / 2
+          y = canvas.height - padding - textHeight / 2
+          ctx.textAlign = 'left'
+          break
+        case 'bottom-right':
+          x = canvas.width - padding - textWidth / 2
+          y = canvas.height - padding - textHeight / 2
+          ctx.textAlign = 'right'
+          break
+        case 'center':
+          x = canvas.width / 2
+          y = canvas.height / 2
+          break
+        default:
+          x = canvas.width - padding - textWidth / 2
+          y = canvas.height - padding - textHeight / 2
+          ctx.textAlign = 'right'
+      }
+      
+      // Draw watermark
+      ctx.fillText(watermarkText, x, y)
+      
+      // Reset alpha
+      ctx.globalAlpha = 1
+      
+      const url = canvas.toDataURL('image/png')
+      addToHistory(url)
+    }
+    img.src = image.original
+  }
+
   // Crop image
   const cropImage = (x: number, y: number, width: number, height: number) => {
     if (!image.original) return
@@ -587,6 +948,34 @@ export default function Home() {
                            font-medium hover:bg-slate-50 transition-all shadow-sm"
                 >
                   ✂️ 裁剪
+                </button>
+                <button
+                  onClick={() => setActiveTool(activeTool === 'filters' ? 'none' : 'filters')}
+                  className="px-6 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl
+                           font-medium hover:bg-slate-50 transition-all shadow-sm"
+                >
+                  🎨 滤镜
+                </button>
+                <button
+                  onClick={() => setActiveTool(activeTool === 'batch' ? 'none' : 'batch')}
+                  className="px-6 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl
+                           font-medium hover:bg-slate-50 transition-all shadow-sm"
+                >
+                  📦 批量处理
+                </button>
+                <button
+                  onClick={() => setActiveTool(activeTool === 'enhance' ? 'none' : 'enhance')}
+                  className="px-6 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl
+                           font-medium hover:bg-slate-50 transition-all shadow-sm"
+                >
+                  ✨ 图片增强
+                </button>
+                <button
+                  onClick={() => setActiveTool(activeTool === 'watermark' ? 'none' : 'watermark')}
+                  className="px-6 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl
+                           font-medium hover:bg-slate-50 transition-all shadow-sm"
+                >
+                  🏷️ 添加水印
                 </button>
                 <button
                   onClick={() => image.processed && setActiveTool(activeTool === 'background' ? 'none' : 'background')}
@@ -875,6 +1264,117 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Filters Panel */}
+              {activeTool === 'filters' && (
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                  <h3 className="text-lg font-semibold text-slate-700 mb-4">🎨 滤镜</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">滤镜预设</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {filterPresets.map((preset, index) => (
+                          <button
+                            key={index}
+                            onClick={() => applyFilterPreset(preset)}
+                            className="py-2 px-3 border border-slate-300 rounded-lg hover:bg-slate-50 transition text-sm"
+                          >
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">亮度: {brightness}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        value={brightness}
+                        onChange={(e) => setBrightness(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">对比度: {contrast}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        value={contrast}
+                        onChange={(e) => setContrast(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">饱和度: {saturation}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        value={saturation}
+                        onChange={(e) => setSaturation(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">模糊: {blur}px</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="20"
+                        value={blur}
+                        onChange={(e) => setBlur(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">黑白: {grayscale}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={grayscale}
+                        onChange={(e) => setGrayscale(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">复古: {sepia}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={sepia}
+                        onChange={(e) => setSepia(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button
+                        onClick={applyFilters}
+                        className="flex-1 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                      >
+                        应用滤镜
+                      </button>
+                      <button
+                        onClick={resetFilters}
+                        className="flex-1 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+                      >
+                        重置
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Background Panel */}
               {activeTool === 'background' && (
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
@@ -956,6 +1456,263 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* Batch Processing Panel */}
+              {activeTool === 'batch' && (
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                  <h3 className="text-lg font-semibold text-slate-700 mb-4">📦 批量处理</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">上传图片</label>
+                      <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center">
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files) {
+                              handleBatchUpload(e.target.files)
+                            }
+                          }}
+                          className="hidden"
+                          id="batch-upload"
+                        />
+                        <label
+                          htmlFor="batch-upload"
+                          className="cursor-pointer block"
+                        >
+                          <div className="text-2xl mb-2">📁</div>
+                          <p className="text-sm text-slate-600">点击或拖拽上传图片</p>
+                          <p className="text-xs text-slate-400">最多 10 张，每张最大 20MB</p>
+                        </label>
+                      </div>
+                    </div>
+                    
+                    {batchImages.length > 0 && (
+                      <div>
+                        <label className="block text-sm text-slate-600 mb-2">已选择图片 ({batchImages.length})</label>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {batchImages.map((file, index) => (
+                            <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                              <span className="text-sm text-slate-600 truncate">{file.name}</span>
+                              <span className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">应用当前滤镜设置</label>
+                      <div className="text-xs text-slate-500 mb-2">
+                        亮度: {brightness}%, 对比度: {contrast}%, 饱和度: {saturation}%, 
+                        模糊: {blur}px, 黑白: {grayscale}%, 复古: {sepia}%
+                      </div>
+                    </div>
+                    
+                    {batchProcessing && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-slate-600">处理进度</span>
+                          <span className="text-sm font-medium text-blue-600">{batchProgress}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${batchProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
+                    <button
+                      onClick={processBatch}
+                      disabled={batchImages.length === 0 || batchProcessing}
+                      className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      {batchProcessing ? '处理中...' : `开始处理 (${batchImages.length} 张图片)`}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Enhancement Panel */}
+              {activeTool === 'enhance' && (
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                  <h3 className="text-lg font-semibold text-slate-700 mb-4">✨ 图片增强</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">增强预设</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {enhancementPresets.map((preset, index) => (
+                          <button
+                            key={index}
+                            onClick={() => applyEnhancementPreset(preset)}
+                            className="py-2 px-3 border border-slate-300 rounded-lg hover:bg-slate-50 transition text-sm"
+                          >
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">锐化: {sharpen}</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={sharpen}
+                        onChange={(e) => setSharpen(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">降噪: {noiseReduction}</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={noiseReduction}
+                        onChange={(e) => setNoiseReduction(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">暗角: {vignette}</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={vignette}
+                        onChange={(e) => setVignette(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">曝光: {exposure}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        value={exposure}
+                        onChange={(e) => setExposure(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div className="flex gap-2">
+                      <button
+                        onClick={applyEnhancement}
+                        className="flex-1 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+                      >
+                        应用增强
+                      </button>
+                      <button
+                        onClick={resetEnhancement}
+                        className="flex-1 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+                      >
+                        重置
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Watermark Panel */}
+              {activeTool === 'watermark' && (
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                  <h3 className="text-lg font-semibold text-slate-700 mb-4">🏷️ 添加水印</h3>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">水印文字</label>
+                      <input
+                        type="text"
+                        value={watermarkText}
+                        onChange={(e) => setWatermarkText(e.target.value)}
+                        placeholder="输入水印文字"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">字体大小: {watermarkSize}px</label>
+                      <input
+                        type="range"
+                        min="10"
+                        max="100"
+                        value={watermarkSize}
+                        onChange={(e) => setWatermarkSize(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">文字颜色</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={watermarkColor}
+                          onChange={(e) => setWatermarkColor(e.target.value)}
+                          className="w-12 h-10 rounded cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={watermarkColor}
+                          onChange={(e) => setWatermarkColor(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">透明度: {Math.round(watermarkOpacity * 100)}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={watermarkOpacity}
+                        onChange={(e) => setWatermarkOpacity(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm text-slate-600 mb-2">位置</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {watermarkPositions.map((pos) => (
+                          <button
+                            key={pos.value}
+                            onClick={() => setWatermarkPosition(pos.value)}
+                            className={`py-2 px-3 border rounded-lg transition text-sm ${
+                              watermarkPosition === pos.value
+                                ? 'bg-blue-500 text-white border-blue-500'
+                                : 'border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            {pos.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={applyWatermark}
+                      disabled={!watermarkText}
+                      className="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      添加水印
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Tips */}
               <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100">
                 <h3 className="text-lg font-semibold text-blue-700 mb-2">💡 提示</h3>
@@ -965,6 +1722,9 @@ export default function Home() {
                   <li>• 所有处理在本地完成，隐私安全</li>
                   <li>• 大图片处理可能需要一些时间</li>
                   <li>• 建议先保存编辑后的图片</li>
+                  <li>• 批量处理支持最多 10 张图片</li>
+                  <li>• 图片增强可以提升图片质量</li>
+                  <li>• 水印功能可以保护图片版权</li>
                 </ul>
               </div>
             </div>
