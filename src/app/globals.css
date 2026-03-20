@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 248, 250, 252;
+  --background-end-rgb: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+/* 棋盘格背景 - 用于透明背景预览 */
+.checkerboard {
+  background-image: 
+    linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+    linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+    linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+/* 进度条动画 */
+@keyframes progress {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+.animate-progress {
+  animation: progress 2s ease-in-out;
+}
